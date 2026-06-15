@@ -291,6 +291,14 @@ export class SmarterMailClient {
     })
   }
 
+  async deleteFiles(accessToken: string, fileIds: string[]): Promise<{ success: boolean; message?: string }> {
+    return this.post<{ success: boolean; message?: string }>('api/v1/filestorage/delete-files', {
+      fileIDs: fileIds,
+    }, {
+      'Authorization': `Bearer ${accessToken}`,
+    })
+  }
+
   /**
    * SmarterMail's public upload endpoint expects a multipart "folder" field in addition to the
    * file payload. Some servers return an empty uploadData object even when the upload succeeds,

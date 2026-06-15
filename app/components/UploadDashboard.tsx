@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import type { ChangeEvent, DragEvent } from 'react'
-import { AlertTriangle, CheckCircle2, CloudBackup, LogOut } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, LogOut, Server } from 'lucide-react'
 
 import { TelegramBindModal } from '@/app/components/TelegramBindModal'
 import { UploadDropzone } from '@/app/components/UploadDropzone'
@@ -63,7 +63,7 @@ export function UploadDashboard({
         <header className="mb-6 flex flex-col gap-4 border-b border-zinc-700/60 pb-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-4">
             <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 shadow-lg shadow-blue-500/20">
-              <CloudBackup className="h-7 w-7 text-white" />
+              <Server className="h-7 w-7 text-white" />
             </div>
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-white">CraneMail Cloud Drive</h1>

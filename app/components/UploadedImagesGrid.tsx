@@ -223,10 +223,10 @@ export function UploadedImagesGrid({
             <AlertDialogMedia className="bg-red-500/10 text-red-400">
               <AlertTriangle className="h-6 w-6" />
             </AlertDialogMedia>
-            <AlertDialogTitle>Delete image record?</AlertDialogTitle>
+            <AlertDialogTitle>Delete workspace file?</AlertDialogTitle>
             <AlertDialogDescription className="text-zinc-400">
-              This removes the image record from your upload history. The file name is{' '}
-              <span className="font-medium text-zinc-200">{deleteTarget?.fileName}</span>.
+              This permanently deletes the file from your SmarterMail workspace and removes it from upload history. The file name is{' '}
+              <span className="font-medium text-zinc-200">{deleteTarget?.fileName}</span>. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="border-zinc-800 bg-zinc-900/60">

@@ -470,32 +470,49 @@ app.delete('/images/:id', async (c) => {
       return apiError(c, 'Image ID is required', 400)
     }
 
-    const email = await callSmarterMail(c, async (client, accessToken) => {
+    const deleteResult = await callSmarterMail(c, async (client, accessToken) => {
       const userSettings = await client.getUserSettings(accessToken)
       const userData = userSettings?.userData
       if (!userSettings || userSettings.success === false || !userData?.emailAddress) {
         throw new HTTPException(401, { message: 'Failed to fetch user email context' })
       }
-      return userData.emailAddress
+      const email = userData.emailAddress
+
+      // Check if the image belongs to this user
+      const checkRes = await db.execute({
+        sql: 'SELECT id, fileId, fileName FROM uploaded_images WHERE id = ? AND email = ? LIMIT 1',
+        args: [id, email]
+      })
+
+      if (checkRes.rows.length === 0) {
+        throw new HTTPException(404, { message: 'Image not found or access denied' })
+      }
+
+      const image = checkRes.rows[0]
+      const fileId = typeof image.fileId === 'string' ? image.fileId : ''
+      if (!fileId) {
+        throw new HTTPException(409, { message: 'Cannot delete workspace file because this image record is missing a file ID' })
+      }
+
+      const deleteRes = await client.deleteFiles(accessToken, [fileId])
+      if (!deleteRes.success) {
+        throw new Error(deleteRes.message || 'Failed to delete workspace file')
+      }
+
+      return {
+        id,
+        fileId,
+        fileName: typeof image.fileName === 'string' ? image.fileName : undefined,
+      }
     })
 
-    // Check if the image belongs to this user
-    const checkRes = await db.execute({
-      sql: 'SELECT id, fileId FROM uploaded_images WHERE id = ? AND email = ? LIMIT 1',
-      args: [id, email]
-    })
-
-    if (checkRes.rows.length === 0) {
-      return apiError(c, 'Image not found or access denied', 404)
-    }
-
-    // Delete from local DB
+    // Delete from local DB only after the workspace file has been deleted.
     await db.execute({
       sql: 'DELETE FROM uploaded_images WHERE id = ?',
       args: [id]
     })
 
-    return apiSuccess(c, { id }, 'Image deleted successfully')
+    return apiSuccess(c, deleteResult, 'Workspace file deleted successfully')
   } catch (error) {
     console.error('Delete image error:', error)
     if (error instanceof HTTPException) {
