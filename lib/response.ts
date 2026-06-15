@@ -1,11 +1,12 @@
 import { Context } from 'hono'
+import type { ContentfulStatusCode } from 'hono/utils/http-status'
 
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   success: boolean
   code: number
   message: string
   data: T | null
-  errors?: any
+  errors?: unknown
   timestamp: string
 }
 
@@ -29,7 +30,7 @@ export function apiSuccess<T>(
     data,
     timestamp: new Date().toISOString(),
   }
-  return c.json(responseBody, status as any)
+  return c.json(responseBody, status as ContentfulStatusCode)
 }
 
 /**
@@ -43,7 +44,7 @@ export function apiError(
   c: Context,
   message: string,
   status: number = 400,
-  errors?: any
+  errors?: unknown
 ) {
   const responseBody: ApiResponse<null> = {
     success: false,
@@ -53,5 +54,5 @@ export function apiError(
     errors,
     timestamp: new Date().toISOString(),
   }
-  return c.json(responseBody, status as any)
+  return c.json(responseBody, status as ContentfulStatusCode)
 }

@@ -5,6 +5,76 @@ import crypto from 'crypto'
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN
 
+export interface TelegramUser {
+  id: number
+  is_bot?: boolean
+  first_name?: string
+  last_name?: string
+  username?: string
+  language_code?: string
+}
+
+export interface TelegramChat {
+  id: number
+  type: string
+  title?: string
+  username?: string
+  first_name?: string
+  last_name?: string
+}
+
+export interface TelegramPhotoSize {
+  file_id: string
+  file_unique_id: string
+  width: number
+  height: number
+  file_size?: number
+}
+
+export interface TelegramDocument {
+  file_id: string
+  file_unique_id: string
+  file_name?: string
+  mime_type?: string
+  file_size?: number
+}
+
+export interface TelegramMessage {
+  message_id: number
+  from?: TelegramUser
+  chat: TelegramChat
+  date: number
+  text?: string
+  photo?: TelegramPhotoSize[]
+  document?: TelegramDocument
+}
+
+export interface TelegramUpdate {
+  update_id: number
+  message?: TelegramMessage
+}
+
+interface BindTokenRow {
+  token: string
+  email: string
+  serverUrl: string
+  encryptedPassword: string | null
+  refreshToken: string | null
+  expiresAt: string
+  createdAt?: string
+}
+
+interface UserRow {
+  id: string
+  email: string
+  serverUrl: string
+  telegramUserId: string | null
+  encryptedPassword: string | null
+  refreshToken: string | null
+  createdAt?: string
+  updatedAt?: string
+}
+
 /**
  * Sends a text message to a specific Telegram chat.
  */
@@ -35,7 +105,7 @@ export async function sendTelegramMessage(chatId: number | string, text: string)
 /**
  * Core entrypoint to handle incoming Telegram updates (via webhook or polling).
  */
-export async function handleTelegramUpdate(update: any) {
+export async function handleTelegramUpdate(update: TelegramUpdate) {
   if (!BOT_TOKEN) {
     console.error('TELEGRAM_BOT_TOKEN is not configured.')
     return
@@ -86,7 +156,7 @@ export async function handleTelegramUpdate(update: any) {
         sql: 'SELECT * FROM bind_tokens WHERE token = ? LIMIT 1',
         args: [token],
       })
-      const bindToken = bindResult.rows[0] as any
+      const bindToken = bindResult.rows[0] as unknown as BindTokenRow | undefined
 
       if (!bindToken || new Date(bindToken.expiresAt) < new Date()) {
         await sendTelegramMessage(
@@ -128,9 +198,10 @@ export async function handleTelegramUpdate(update: any) {
         chatId,
         `🎉 <b>Binding Successful!</b>\n\nYour Telegram account has been linked to Cranemail account: <code>${bindToken.email}</code>.\n\nYou can now send photos or files to this bot, and they will be uploaded directly to your cloud drive!`
       )
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error binding account:', err)
-      await sendTelegramMessage(chatId, `❌ <b>Binding Error:</b>\nAn error occurred while linking your account: ${err.message}`)
+      const errorMessage = err instanceof Error ? err.message : String(err)
+      await sendTelegramMessage(chatId, `❌ <b>Binding Error:</b>\nAn error occurred while linking your account: ${errorMessage}`)
     }
     return
   }
@@ -156,7 +227,7 @@ export async function handleTelegramUpdate(update: any) {
         sql: 'SELECT * FROM users WHERE telegramUserId = ? LIMIT 1',
         args: [String(fromId)],
       })
-      const user = userRes.rows[0] as any
+      const user = userRes.rows[0] as unknown as UserRow | undefined
 
       if (!user) {
         await sendTelegramMessage(
@@ -226,11 +297,12 @@ export async function handleTelegramUpdate(update: any) {
         `<b>Name:</b> <code>${fileName}</code>\n` +
         `<b>Link:</b> <a href="${linkResult.publicLink}">${linkResult.publicLink}</a>`
       )
-    } catch (err: any) {
+    } catch (err) {
       console.error('Telegram bot file upload error:', err)
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred during upload.'
       await sendTelegramMessage(
         chatId,
-        `❌ <b>Upload Failed:</b>\n${err.message || 'An unexpected error occurred during upload.'}`
+        `❌ <b>Upload Failed:</b>\n${errorMessage}`
       )
     }
     return

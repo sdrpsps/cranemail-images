@@ -30,6 +30,23 @@ export interface SmarterMailUserResponse {
   displayName?: string
 }
 
+export interface SmarterMailUploadFileMeta {
+  id: string
+  [key: string]: unknown
+}
+
+export interface SmarterMailUploadResponse {
+  success: boolean
+  message?: string
+  uploadData?: Record<string, SmarterMailUploadFileMeta>
+}
+
+export interface SmarterMailLinkResponse {
+  success: boolean
+  message?: string
+  publicLink?: string
+}
+
 export class SmarterMailClient {
   private serverUrl: string
   private clientId: string
@@ -45,7 +62,7 @@ export class SmarterMailClient {
   /**
    * Helper to make HTTP POST requests to SmarterMail REST API.
    */
-  private async post<T>(path: string, body: any, headers: Record<string, string> = {}): Promise<T> {
+  private async post<T>(path: string, body: unknown, headers: Record<string, string> = {}): Promise<T> {
     const url = `${this.serverUrl}/${path.replace(/^\/+/, '')}`
     const response = await fetch(url, {
       method: 'POST',
@@ -115,8 +132,8 @@ export class SmarterMailClient {
    * Retrieve currently authenticated user's settings profile.
    * Can be used to verify if the token is valid.
    */
-  async getUserSettings(accessToken: string): Promise<any> {
-    return this.get<any>('api/v1/settings/user', {
+  async getUserSettings(accessToken: string): Promise<SmarterMailUserResponse> {
+    return this.get<SmarterMailUserResponse>('api/v1/settings/user', {
       'Authorization': `Bearer ${accessToken}`,
     })
   }
@@ -144,10 +161,10 @@ export class SmarterMailClient {
    * Upload a file to file storage.
    * Supports an optional folderPath. Falls back to root if the folder-based upload fails.
    */
-  async uploadFile(accessToken: string, fileBuffer: Buffer, fileName: string, folderPath?: string): Promise<any> {
-    const makeUploadRequest = async (path?: string) => {
+  async uploadFile(accessToken: string, fileBuffer: Buffer, fileName: string, folderPath?: string): Promise<SmarterMailUploadResponse> {
+    const makeUploadRequest = async (path?: string): Promise<SmarterMailUploadResponse> => {
       const formData = new FormData()
-      const blob = new Blob([fileBuffer as any])
+      const blob = new Blob([fileBuffer])
       formData.append('file', blob, fileName)
 
       let url = `${this.serverUrl}/api/v1/filestorage/upload`
@@ -169,15 +186,16 @@ export class SmarterMailClient {
         throw new Error(`SmarterMail Upload HTTP Error: ${response.status} - ${errorText || response.statusText}`)
       }
 
-      return response.json()
+      return response.json() as Promise<SmarterMailUploadResponse>
     }
 
     if (folderPath) {
       try {
         console.log(`[SmarterMail Client] Attempting upload with folderPath: ${folderPath}`)
         return await makeUploadRequest(folderPath)
-      } catch (err: any) {
-        console.warn(`[SmarterMail Client] Folder upload failed (${err.message}). Falling back to root directory.`)
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : String(err)
+        console.warn(`[SmarterMail Client] Folder upload failed (${errorMessage}). Falling back to root directory.`)
         return await makeUploadRequest()
       }
     }
@@ -189,8 +207,8 @@ export class SmarterMailClient {
    * Generates a public sharing link for a file in file storage.
    * We pass 'public' to ensure it gets published.
    */
-  async generatePublicLink(accessToken: string, fileId: string): Promise<any> {
-    return this.get<any>(`api/v1/filestorage/${fileId}/getlink/public`, {
+  async generatePublicLink(accessToken: string, fileId: string): Promise<SmarterMailLinkResponse> {
+    return this.get<SmarterMailLinkResponse>(`api/v1/filestorage/${fileId}/getlink/public`, {
       'Authorization': `Bearer ${accessToken}`,
     })
   }

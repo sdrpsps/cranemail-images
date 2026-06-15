@@ -1,4 +1,4 @@
-import { Hono } from 'hono'
+import { Hono, Context } from 'hono'
 import { handle } from 'hono/vercel'
 import { HTTPException } from 'hono/http-exception'
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie'
@@ -107,14 +107,15 @@ app.post('/auth/login', async (c) => {
       serverUrl: serverUrl || process.env.NEXT_PUBLIC_SMARTERMAIL_URL || 'https://us1.workspace.org',
       isTelegramBound: !!(dbUser && dbUser.telegramUserId),
     }, 'Authentication successful')
-  } catch (error: any) {
+  } catch (error) {
     console.error('Login error:', error)
-    return apiError(c, error.message || 'An error occurred during authentication', 500)
+    const errorMessage = error instanceof Error ? error.message : 'An error occurred during authentication'
+    return apiError(c, errorMessage, 500)
   }
 })
 
 // Helper to retrieve and automatically refresh SmarterMail access token from cookies
-async function getValidAccessToken(c: any): Promise<{ accessToken: string; serverUrl: string } | null> {
+async function getValidAccessToken(c: Context): Promise<{ accessToken: string; serverUrl: string } | null> {
   const accessToken = getCookie(c, 'sm_access_token')
   const refreshToken = getCookie(c, 'sm_refresh_token')
   const serverUrl = getCookie(c, 'sm_server_url')
@@ -136,7 +137,7 @@ async function getValidAccessToken(c: any): Promise<{ accessToken: string; serve
         setCookie(c, 'sm_refresh_token', refreshResult.refreshToken || refreshToken, getCookieOptions(refreshResult.refreshTokenExpiration))
         return { accessToken: refreshResult.accessToken, serverUrl }
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Token refresh helper failed:', err)
     }
   }
@@ -247,9 +248,10 @@ app.post('/auth/telegram/bind-token', async (c) => {
     const bindUrl = `https://t.me/${botUsername}?start=${token}`
 
     return apiSuccess(c, { token, bindUrl }, 'Binding link generated successfully')
-  } catch (error: any) {
+  } catch (error) {
     console.error('Bind token error:', error)
-    return apiError(c, error.message || 'An error occurred while generating bind token', 500)
+    const errorMessage = error instanceof Error ? error.message : 'An error occurred while generating bind token'
+    return apiError(c, errorMessage, 500)
   }
 })
 
@@ -298,9 +300,10 @@ app.post('/upload', async (c) => {
       publicLink: linkResult.publicLink,
       size: file.size,
     }, 'File uploaded successfully')
-  } catch (error: any) {
+  } catch (error) {
     console.error('Web upload endpoint error:', error)
-    return apiError(c, error.message || 'An error occurred during file upload', 500)
+    const errorMessage = error instanceof Error ? error.message : 'An error occurred during file upload'
+    return apiError(c, errorMessage, 500)
   }
 })
 

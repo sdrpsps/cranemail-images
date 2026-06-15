@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
 interface User {
   username: string
@@ -99,7 +99,7 @@ export default function Home() {
   }
 
   // Fetch current user session on mount
-  const checkSession = async () => {
+  const checkSession = useCallback(async () => {
     try {
       const res = await fetch('/api/auth/me')
       const data = await res.json()
@@ -114,11 +114,12 @@ export default function Home() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     checkSession()
-  }, [])
+  }, [checkSession])
 
   // Handle Login submission
   const handleLogin = async (e: React.FormEvent) => {
@@ -148,7 +149,7 @@ export default function Home() {
       } else {
         setError(data.message || 'Authentication failed. Please check your credentials.')
       }
-    } catch (err: any) {
+    } catch (err) {
       setError('Connection error. Could not reach the authentication server.')
       console.error(err)
     } finally {
@@ -585,7 +586,7 @@ export default function Home() {
                   </div>
                   <div className="flex space-x-2 items-start">
                     <span className="bg-blue-600/30 text-blue-400 w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 font-bold">2</span>
-                    <span className="text-zinc-400">Click <b>"Start"</b> (or send the generated command starting with `/start`).</span>
+                    <span className="text-zinc-400">Click <b>&quot;Start&quot;</b> (or send the generated command starting with `/start`).</span>
                   </div>
                   <div className="flex space-x-2 items-start">
                     <span className="bg-blue-600/30 text-blue-400 w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 font-bold">3</span>
