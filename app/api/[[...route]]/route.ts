@@ -434,9 +434,10 @@ app.post('/upload', async (c) => {
 
     // 3. Save uploaded image metadata to database
     const imageId = nodeCrypto.randomUUID()
+    const createdAt = new Date().toISOString()
     await db.execute({
-      sql: `INSERT INTO uploaded_images (id, email, fileId, fileName, publicLink, size, source)
-            VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      sql: `INSERT INTO uploaded_images (id, email, fileId, fileName, publicLink, size, source, createdAt)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         imageId,
         uploadResult.email,
@@ -444,7 +445,8 @@ app.post('/upload', async (c) => {
         fileName,
         uploadResult.publicLink,
         file.size,
-        'web'
+        'web',
+        createdAt
       ]
     })
 
@@ -453,6 +455,7 @@ app.post('/upload', async (c) => {
       fileName,
       publicLink: uploadResult.publicLink,
       size: file.size,
+      createdAt,
     }, 'File uploaded successfully')
   } catch (error) {
     console.error('Web upload endpoint error:', error)

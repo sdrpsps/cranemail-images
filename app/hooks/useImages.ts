@@ -70,7 +70,7 @@ export function useImages() {
             publicLink: data.data.publicLink,
             size: file.size,
             source: 'web',
-            createdAt: new Date().toISOString(),
+            createdAt: data.data.createdAt || new Date().toISOString(),
           }
           setImages((prev) => [newImg, ...prev])
           showToast('Image uploaded successfully!')

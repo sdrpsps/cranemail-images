@@ -351,9 +351,10 @@ export async function handleTelegramUpdate(update: TelegramUpdate) {
 
       // Save uploaded image metadata to database
       const imageId = crypto.randomUUID()
+      const createdAt = new Date().toISOString()
       await db.execute({
-        sql: `INSERT INTO uploaded_images (id, email, fileId, fileName, publicLink, size, source)
-              VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        sql: `INSERT INTO uploaded_images (id, email, fileId, fileName, publicLink, size, source, createdAt)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         args: [
           imageId,
           user.email,
@@ -361,7 +362,8 @@ export async function handleTelegramUpdate(update: TelegramUpdate) {
           fileName,
           linkResult.publicLink,
           fileBuffer.length,
-          'telegram'
+          'telegram',
+          createdAt
         ]
       })
 
