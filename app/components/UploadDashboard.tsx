@@ -23,6 +23,7 @@ interface UploadDashboardProps {
   deletingIds: Set<string>
   onLogout: () => void
   onRefreshSession: () => Promise<void>
+  onRefreshImages: () => Promise<void>
   onSyncWorkspace: () => void
   onCopyLink: (url: string) => void
   onDeleteImage: (id: string) => Promise<void> | void
@@ -43,6 +44,7 @@ export function UploadDashboard({
   deletingIds,
   onLogout,
   onRefreshSession,
+  onRefreshImages,
   onSyncWorkspace,
   onCopyLink,
   onDeleteImage,
@@ -143,6 +145,7 @@ export function UploadDashboard({
             imagesError={imagesError}
             syncing={syncing}
             deletingIds={deletingIds}
+            onRefreshImages={onRefreshImages}
             onSyncWorkspace={onSyncWorkspace}
             onCopyLink={onCopyLink}
             onDeleteImage={onDeleteImage}

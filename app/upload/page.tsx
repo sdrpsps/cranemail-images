@@ -67,6 +67,7 @@ export default function UploadPage() {
           deletingIds={deletingIds}
           onLogout={handleLogout}
           onRefreshSession={checkSession}
+          onRefreshImages={fetchImages}
           onSyncWorkspace={syncWorkspace}
           onCopyLink={copyLink}
           onDeleteImage={deleteImage}

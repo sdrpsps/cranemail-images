@@ -26,6 +26,7 @@ interface UploadedImagesGridProps {
   imagesError: string
   syncing: boolean
   deletingIds: Set<string>
+  onRefreshImages: () => Promise<void>
   onSyncWorkspace: () => void
   onCopyLink: (url: string) => void
   onDeleteImage: (id: string) => Promise<void> | void
@@ -87,6 +88,7 @@ export function UploadedImagesGrid({
   imagesError,
   syncing,
   deletingIds,
+  onRefreshImages,
   onSyncWorkspace,
   onCopyLink,
   onDeleteImage,
@@ -107,6 +109,26 @@ export function UploadedImagesGrid({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Uploaded History ({images.length})</p>
           <div className="flex items-center space-x-2">
+            <Button
+              onClick={onRefreshImages}
+              disabled={imagesLoading || syncing}
+              variant="outline"
+              size="xs"
+              className="border-zinc-800 bg-zinc-950/60 text-[10px] text-zinc-300 hover:bg-zinc-900 hover:text-white"
+              title="Refresh uploaded image list"
+            >
+              {imagesLoading && !syncing ? (
+                <>
+                  <LoaderCircle className="h-3 w-3 animate-spin text-blue-400" />
+                  <span>Refreshing...</span>
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-3 w-3 text-blue-400" />
+                  <span>Refresh</span>
+                </>
+              )}
+            </Button>
             <Button
               onClick={onSyncWorkspace}
               disabled={syncing || imagesLoading}
