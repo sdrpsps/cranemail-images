@@ -83,6 +83,22 @@ app.post('/auth/login', async (c) => {
     })
     const dbUser = userCheck.rows[0]
 
+    // If the user already has a bound Telegram account, automatically sync 
+    // the newest encrypted password and refresh token to keep the bot operational.
+    if (dbUser) {
+      await db.execute({
+        sql: `UPDATE users 
+              SET encryptedPassword = ?, refreshToken = ?, updatedAt = CURRENT_TIMESTAMP 
+              WHERE email = ?`,
+        args: [
+          encrypt(password),
+          result.refreshToken,
+          result.emailAddress
+        ]
+      })
+      console.log(`[Auth Sync] Updated credentials for bound user: ${result.emailAddress}`)
+    }
+
     return apiSuccess(c, {
       username: result.username,
       emailAddress: result.emailAddress,
@@ -97,75 +113,77 @@ app.post('/auth/login', async (c) => {
   }
 })
 
-// GET /api/auth/me
-app.get('/auth/me', async (c) => {
-  let accessToken = getCookie(c, 'sm_access_token')
+// Helper to retrieve and automatically refresh SmarterMail access token from cookies
+async function getValidAccessToken(c: any): Promise<{ accessToken: string; serverUrl: string } | null> {
+  const accessToken = getCookie(c, 'sm_access_token')
   const refreshToken = getCookie(c, 'sm_refresh_token')
   const serverUrl = getCookie(c, 'sm_server_url')
 
-  if (!serverUrl) {
-    return apiError(c, 'Not authenticated (missing server context)', 401)
-  }
+  if (!serverUrl) return null
 
-  const client = new SmarterMailClient(serverUrl)
-  let emailAddress = ''
-  let username = ''
-
-  // Try to use access token
   if (accessToken) {
-    try {
-      const userSettings = await client.getUserSettings(accessToken)
-      if (userSettings && userSettings.success !== false) {
-        emailAddress = userSettings.emailAddress
-        username = userSettings.username || userSettings.emailAddress?.split('@')[0]
-      }
-    } catch (err) {
-      console.warn('Access token verification failed, trying refresh token...', err)
-    }
+    return { accessToken, serverUrl }
   }
 
-  // Try to refresh token if access token was missing or expired
-  if (!emailAddress && refreshToken) {
+  if (refreshToken) {
     try {
-      console.log('Refreshing SmarterMail access token...')
+      console.log('Refreshing expired SmarterMail access token in helper...')
+      const client = new SmarterMailClient(serverUrl)
       const refreshResult = await client.refreshToken(refreshToken)
       
       if (refreshResult.success && refreshResult.accessToken) {
-        // Set new cookies
         setCookie(c, 'sm_access_token', refreshResult.accessToken, getCookieOptions(refreshResult.accessTokenExpiration))
         setCookie(c, 'sm_refresh_token', refreshResult.refreshToken || refreshToken, getCookieOptions(refreshResult.refreshTokenExpiration))
-
-        // Get user settings using new access token
-        const userSettings = await client.getUserSettings(refreshResult.accessToken)
-        emailAddress = userSettings.emailAddress
-        username = userSettings.username || userSettings.emailAddress?.split('@')[0]
+        return { accessToken: refreshResult.accessToken, serverUrl }
       }
     } catch (err: any) {
-      console.error('Token refresh failed:', err)
+      console.error('Token refresh helper failed:', err)
     }
   }
 
-  if (emailAddress) {
-    // Check if Telegram is bound in DB
-    const userCheck = await db.execute({
-      sql: 'SELECT telegramUserId FROM users WHERE email = ? LIMIT 1',
-      args: [emailAddress]
-    })
-    const dbUser = userCheck.rows[0]
+  return null
+}
 
-    return apiSuccess(c, {
-      username,
-      emailAddress,
-      serverUrl,
-      isTelegramBound: !!(dbUser && dbUser.telegramUserId),
-    }, 'Current user retrieved successfully')
+// GET /api/auth/me
+app.get('/auth/me', async (c) => {
+  const authContext = await getValidAccessToken(c)
+  if (!authContext) {
+    deleteCookie(c, 'sm_access_token', { path: '/' })
+    deleteCookie(c, 'sm_refresh_token', { path: '/' })
+    deleteCookie(c, 'sm_server_url', { path: '/' })
+    return apiError(c, 'Not authenticated', 401)
   }
 
-  // If both failed or are missing, clear cookies and unauthorized
+  const { accessToken, serverUrl } = authContext
+  const client = new SmarterMailClient(serverUrl)
+
+  try {
+    const userSettings = await client.getUserSettings(accessToken)
+    if (userSettings && userSettings.success !== false && userSettings.emailAddress) {
+      const emailAddress = userSettings.emailAddress
+      const username = userSettings.username || emailAddress.split('@')[0]
+
+      // Check if Telegram is bound in DB
+      const userCheck = await db.execute({
+        sql: 'SELECT telegramUserId FROM users WHERE email = ? LIMIT 1',
+        args: [emailAddress]
+      })
+      const dbUser = userCheck.rows[0]
+
+      return apiSuccess(c, {
+        username,
+        emailAddress,
+        serverUrl,
+        isTelegramBound: !!(dbUser && dbUser.telegramUserId),
+      }, 'Current user retrieved successfully')
+    }
+  } catch (err) {
+    console.error('getUserSettings in me failed:', err)
+  }
+
   deleteCookie(c, 'sm_access_token', { path: '/' })
   deleteCookie(c, 'sm_refresh_token', { path: '/' })
   deleteCookie(c, 'sm_server_url', { path: '/' })
-
   return apiError(c, 'Not authenticated', 401)
 })
 
@@ -232,6 +250,57 @@ app.post('/auth/telegram/bind-token', async (c) => {
   } catch (error: any) {
     console.error('Bind token error:', error)
     return apiError(c, error.message || 'An error occurred while generating bind token', 500)
+  }
+})
+
+// POST /api/upload
+app.post('/upload', async (c) => {
+  const authContext = await getValidAccessToken(c)
+  if (!authContext) {
+    return apiError(c, 'Not authenticated', 401)
+  }
+
+  const { accessToken, serverUrl } = authContext
+
+  try {
+    const body = await c.req.parseBody()
+    const file = body.file
+
+    if (!file || !(file instanceof File)) {
+      return apiError(c, 'No file uploaded or invalid file format', 400)
+    }
+
+    const fileBuffer = Buffer.from(await file.arrayBuffer())
+    const fileName = file.name || `web_upload_${Date.now()}`
+
+    const client = new SmarterMailClient(serverUrl)
+    const folderPath = SmarterMailClient.getUtc8DatePath()
+
+    // 1. Upload to SmarterMail storage
+    const uploadResult = await client.uploadFile(accessToken, fileBuffer, fileName, folderPath)
+    if (!uploadResult.success || !uploadResult.uploadData) {
+      return apiError(c, uploadResult.message || 'SmarterMail upload failed', 500)
+    }
+
+    const fileMeta = uploadResult.uploadData[fileName]
+    if (!fileMeta || !fileMeta.id) {
+      return apiError(c, 'Uploaded file metadata missing', 500)
+    }
+
+    // 2. Generate public share link
+    const linkResult = await client.generatePublicLink(accessToken, fileMeta.id)
+    if (!linkResult.success || !linkResult.publicLink) {
+      return apiError(c, linkResult.message || 'Failed to generate public share link', 500)
+    }
+
+    return apiSuccess(c, {
+      fileName,
+      publicLink: linkResult.publicLink,
+      size: file.size,
+    }, 'File uploaded successfully')
+  } catch (error: any) {
+    console.error('Web upload endpoint error:', error)
+    return apiError(c, error.message || 'An error occurred during file upload', 500)
   }
 })
 

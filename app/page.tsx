@@ -33,6 +33,71 @@ export default function Home() {
   const [bindError, setBindError] = useState('')
   const [bindData, setBindData] = useState<BindData | null>(null)
 
+  // Web Upload States
+  const [uploadFiles, setUploadFiles] = useState<{ name: string; url: string; size: string }[]>([])
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState('')
+  const [isDragActive, setIsDragActive] = useState(false)
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setIsDragActive(true)
+    } else if (e.type === 'dragleave') {
+      setIsDragActive(false)
+    }
+  }
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragActive(false)
+
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      await uploadFile(e.dataTransfer.files[0])
+    }
+  }
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      await uploadFile(e.target.files[0])
+    }
+  }
+
+  const uploadFile = async (file: File) => {
+    setUploading(true)
+    setUploadError('')
+    const formData = new FormData()
+    formData.append('file', file)
+
+    try {
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      })
+      const data = await res.json()
+      if (data.success && data.data) {
+        const sizeStr = (file.size / (1024 * 1024)).toFixed(2) + ' MB'
+        setUploadFiles((prev) => [
+          {
+            name: data.data.fileName,
+            url: data.data.publicLink,
+            size: sizeStr,
+          },
+          ...prev,
+        ])
+      } else {
+        setUploadError(data.message || 'Upload failed. Please try again.')
+      }
+    } catch (err) {
+      setUploadError('Failed to upload file due to a connection error.')
+      console.error(err)
+    } finally {
+      setUploading(false)
+    }
+  }
+
   // Fetch current user session on mount
   const checkSession = async () => {
     try {
@@ -226,6 +291,96 @@ export default function Home() {
                     >
                       Link Telegram Bot
                     </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Web Direct Upload Panel */}
+              <div className="bg-zinc-950/40 rounded-xl p-4 border border-zinc-800/40 flex flex-col space-y-3">
+                <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Web Direct Upload</span>
+                
+                <div
+                  onDragEnter={handleDrag}
+                  onDragOver={handleDrag}
+                  onDragLeave={handleDrag}
+                  onDrop={handleDrop}
+                  className={`relative border-2 border-dashed rounded-xl p-6 transition-all flex flex-col items-center justify-center text-center cursor-pointer ${
+                    isDragActive
+                      ? 'border-blue-500 bg-blue-500/5'
+                      : 'border-zinc-800 hover:border-zinc-700 bg-zinc-900/10'
+                  }`}
+                >
+                  <input
+                    type="file"
+                    id="web-file-input"
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    onChange={handleFileChange}
+                    disabled={uploading}
+                  />
+                  
+                  {uploading ? (
+                    <div className="flex flex-col items-center space-y-2">
+                      <div className="w-8 h-8 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+                      <span className="text-xs text-zinc-400">Uploading to cloud drive...</span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center space-y-2">
+                      <svg className="w-8 h-8 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                      </svg>
+                      <span className="text-xs text-zinc-300 font-medium">Drag & drop image here or click to browse</span>
+                      <span className="text-[10px] text-zinc-500">Supports JPG, PNG, GIF, WebP up to 10MB</span>
+                    </div>
+                  )}
+                </div>
+
+                {uploadError && (
+                  <p className="text-xs text-red-400 mt-1">{uploadError}</p>
+                )}
+
+                {/* Uploaded Files History */}
+                {uploadFiles.length > 0 && (
+                  <div className="mt-2 space-y-2 max-h-[160px] overflow-y-auto pr-1">
+                    <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-1">Uploaded Images</p>
+                    {uploadFiles.map((file, idx) => (
+                      <div key={idx} className="bg-zinc-900/50 border border-zinc-800/80 rounded-lg p-2.5 flex flex-wrap sm:flex-nowrap items-center justify-between text-xs animate-[fadeIn_0.2s_ease-out]">
+                        <div className="flex items-center space-x-2.5 min-w-0 flex-1 mr-2">
+                          {/\.(jpg|jpeg|png|gif|webp)$/i.test(file.name) ? (
+                            <img src={file.url} alt={file.name} className="w-8 h-8 object-cover rounded-md border border-zinc-800 bg-zinc-950 flex-shrink-0" />
+                          ) : (
+                            <div className="w-8 h-8 bg-zinc-950 border border-zinc-800 rounded-md flex items-center justify-center flex-shrink-0">
+                              <svg className="w-4 h-4 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                            </div>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <p className="text-zinc-200 font-medium truncate" title={file.name}>{file.name}</p>
+                            <p className="text-[10px] text-zinc-500 font-mono">{file.size}</p>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center space-x-1 flex-shrink-0 mt-2 sm:mt-0">
+                          <a href={file.url} target="_blank" rel="noopener noreferrer" className="p-1.5 hover:bg-zinc-850 rounded-md text-zinc-400 hover:text-zinc-200 transition-colors" title="Open Link">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                            </svg>
+                          </a>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(file.url)
+                              alert('Link copied to clipboard!')
+                            }}
+                            className="p-1.5 hover:bg-zinc-850 rounded-md text-zinc-400 hover:text-blue-400 transition-colors"
+                            title="Copy Direct Link"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>

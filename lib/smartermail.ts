@@ -122,29 +122,67 @@ export class SmarterMailClient {
   }
 
   /**
-   * Upload a file to file storage.
+   * Helper to get current date folder path in UTC+8 (Asia/Shanghai) timezone.
+   * Returns path in format: /YYYY/MM/DD
    */
-  async uploadFile(accessToken: string, fileBuffer: Buffer, fileName: string): Promise<any> {
-    const formData = new FormData()
-    // Convert Buffer to Blob for standard fetch multipart upload
-    const blob = new Blob([fileBuffer])
-    formData.append('file', blob, fileName)
-
-    const url = `${this.serverUrl}/api/v1/filestorage/upload`
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-      },
-      body: formData,
+  static getUtc8DatePath(): string {
+    const d = new Date()
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Shanghai',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
     })
+    const parts = formatter.formatToParts(d)
+    const year = parts.find(p => p.type === 'year')?.value
+    const month = parts.find(p => p.type === 'month')?.value
+    const day = parts.find(p => p.type === 'day')?.value
+    return `/${year}/${month}/${day}`
+  }
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`SmarterMail Upload HTTP Error: ${response.status} - ${errorText || response.statusText}`)
+  /**
+   * Upload a file to file storage.
+   * Supports an optional folderPath. Falls back to root if the folder-based upload fails.
+   */
+  async uploadFile(accessToken: string, fileBuffer: Buffer, fileName: string, folderPath?: string): Promise<any> {
+    const makeUploadRequest = async (path?: string) => {
+      const formData = new FormData()
+      const blob = new Blob([fileBuffer as any])
+      formData.append('file', blob, fileName)
+
+      let url = `${this.serverUrl}/api/v1/filestorage/upload`
+      if (path) {
+        url += `?folderPath=${encodeURIComponent(path)}`
+        formData.append('folderPath', path)
+      }
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: formData,
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`SmarterMail Upload HTTP Error: ${response.status} - ${errorText || response.statusText}`)
+      }
+
+      return response.json()
     }
 
-    return response.json()
+    if (folderPath) {
+      try {
+        console.log(`[SmarterMail Client] Attempting upload with folderPath: ${folderPath}`)
+        return await makeUploadRequest(folderPath)
+      } catch (err: any) {
+        console.warn(`[SmarterMail Client] Folder upload failed (${err.message}). Falling back to root directory.`)
+        return await makeUploadRequest()
+      }
+    }
+
+    return makeUploadRequest()
   }
 
   /**

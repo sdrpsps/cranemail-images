@@ -199,8 +199,10 @@ export async function handleTelegramUpdate(update: any) {
 
       const fileBuffer = Buffer.from(await tgDownRes.arrayBuffer())
 
+      const folderPath = SmarterMailClient.getUtc8DatePath()
+
       // Upload file to SmarterMail
-      const uploadResult = await client.uploadFile(authResult.accessToken, fileBuffer, fileName)
+      const uploadResult = await client.uploadFile(authResult.accessToken, fileBuffer, fileName, folderPath)
       if (!uploadResult.success || !uploadResult.uploadData) {
         throw new Error(uploadResult.message || 'SmarterMail upload failed.')
       }
